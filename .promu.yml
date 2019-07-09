@@ -17,7 +17,6 @@ build:
     flags: -mod=vendor -a -tags netgo
     #flags: -mod=vendor -a -tags netgo,builtinassets
     ldflags: |
-        -s
         -X github.com/prometheus/common/version.Version={{.Version}}
         -X github.com/prometheus/common/version.Revision={{.Revision}}
         -X github.com/prometheus/common/version.Branch={{.Branch}}
