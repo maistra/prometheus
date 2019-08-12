@@ -16,6 +16,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"istio.io/istio/pkg/servicemesh/controller"
 	"reflect"
 	"sync"
 	"time"
@@ -140,6 +141,19 @@ func Name(n string) func(*Manager) {
 	}
 }
 
+// MemberRollController creates the service mesh member roll controller
+func MemberRollController(name, namespace string, resync time.Duration) func(*Manager) {
+	return func(m *Manager) {
+		if name != "" && namespace != "" {
+			m.mtx.Lock()
+			defer m.mtx.Unlock()
+			m.memberRollName = name
+			m.memberRollNamespace = namespace
+			m.memberRollResync = resync
+		}
+	}
+}
+
 // Manager maintains a set of discovery providers and sends each update to a map channel.
 // Targets are grouped by the target set name.
 type Manager struct {
@@ -163,6 +177,10 @@ type Manager struct {
 
 	// The triggerSend channel signals to the manager that new updates have been received from providers.
 	triggerSend chan struct{}
+
+	memberRollName      string
+	memberRollNamespace string
+	memberRollResync    time.Duration
 }
 
 // Run starts the background processing
@@ -366,10 +384,26 @@ func (m *Manager) registerProviders(cfg sd_config.ServiceDiscoveryConfig, setNam
 			return marathon.NewDiscovery(*c, log.With(m.logger, "discovery", "marathon"))
 		})
 	}
-	for _, c := range cfg.KubernetesSDConfigs {
-		add(c, func() (Discoverer, error) {
-			return kubernetes.New(log.With(m.logger, "discovery", "k8s"), c)
-		})
+	if len(cfg.KubernetesSDConfigs) > 0 {
+		memberRollController, err := controller.NewMemberRollControllerFromConfigFile("", m.memberRollNamespace,
+			m.memberRollName, m.memberRollResync)
+		if err != nil {
+			level.Error(m.logger).Log("msg", "Cannot create service mesh member roll controller", "err", err)
+			failedConfigs.WithLabelValues(m.name).Inc()
+		} else {
+			ch := make(chan struct{})
+			m.discoverCancel = append(m.discoverCancel, func() {
+				close(ch)
+			})
+			memberRollController.Start(ch)
+		}
+
+		for _, c := range cfg.KubernetesSDConfigs {
+			add(c, func() (Discoverer, error) {
+				return kubernetes.New(log.With(m.logger, "discovery", "k8s"), c, memberRollController,
+					m.memberRollNamespace, m.memberRollResync)
+			})
+		}
 	}
 	for _, c := range cfg.ServersetSDConfigs {
 		add(c, func() (Discoverer, error) {
