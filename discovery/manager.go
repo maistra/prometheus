@@ -20,6 +20,9 @@ import (
 	"sync"
 	"time"
 
+	"istio.io/istio/pkg/kube"
+	"istio.io/istio/pkg/servicemesh/controller"
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -111,6 +114,19 @@ func Name(n string) func(*Manager) {
 	}
 }
 
+// MemberRollController creates the service mesh member roll controller
+func MemberRollController(name, namespace string, resync time.Duration) func(*Manager) {
+	return func(m *Manager) {
+		if name != "" && namespace != "" {
+			m.mtx.Lock()
+			defer m.mtx.Unlock()
+			m.memberRollName = name
+			m.memberRollNamespace = namespace
+			m.memberRollResync = resync
+		}
+	}
+}
+
 // Manager maintains a set of discovery providers and sends each update to a map channel.
 // Targets are grouped by the target set name.
 type Manager struct {
@@ -134,6 +150,10 @@ type Manager struct {
 
 	// The triggerSend channel signals to the manager that new updates have been received from providers.
 	triggerSend chan struct{}
+
+	memberRollName      string
+	memberRollNamespace string
+	memberRollResync    time.Duration
 }
 
 // Run starts the background processing
@@ -292,6 +312,25 @@ func (m *Manager) allGroups() map[string][]*targetgroup.Group {
 	return tSets
 }
 
+func (m *Manager) createMemberRollController() (controller.MemberRollController, error) {
+	config, err := kube.BuildClientConfig("", "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to BuildClientConfig(): %v", err)
+	}
+	memberRollController, err := controller.NewMemberRollController(config, m.memberRollNamespace,
+		m.memberRollName, m.memberRollResync)
+	if err != nil {
+		return nil, err
+	} else {
+		ch := make(chan struct{})
+		m.discoverCancel = append(m.discoverCancel, func() {
+			close(ch)
+		})
+		memberRollController.Start(ch)
+	}
+	return memberRollController, err
+}
+
 // registerProviders returns a number of failed SD config.
 func (m *Manager) registerProviders(cfgs Configs, setName string) int {
 	var (
@@ -307,9 +346,22 @@ func (m *Manager) registerProviders(cfgs Configs, setName string) int {
 			}
 		}
 		typ := cfg.Name()
-		d, err := cfg.NewDiscoverer(DiscovererOptions{
+		discoveryOptions := DiscovererOptions{
 			Logger: log.With(m.logger, "discovery", typ),
-		})
+		}
+
+		if typ == "kubernetes" {
+			var err error
+			discoveryOptions.MemberRollController, err = m.createMemberRollController()
+			discoveryOptions.MemberRollNamespace = m.memberRollNamespace
+			discoveryOptions.MemberRollResync = m.memberRollResync
+			if err != nil {
+				level.Error(m.logger).Log("msg", "Cannot create service mesh member roll controller", "err", err)
+				failedConfigs.WithLabelValues(m.name).Inc()
+			}
+		}
+
+		d, err := cfg.NewDiscoverer(discoveryOptions)
 		if err != nil {
 			level.Error(m.logger).Log("msg", "Cannot create service discovery", "err", err, "type", typ)
 			failed++

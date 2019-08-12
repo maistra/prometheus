@@ -70,6 +70,7 @@ var (
 		},
 		[]string{"queue_name"},
 	)
+
 	clientGoWorkqueueUnfinishedWorkSecondsMetricVec = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: workqueueMetricsNamespace,

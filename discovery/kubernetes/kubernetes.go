@@ -28,9 +28,9 @@ import (
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
+	"istio.io/istio/pkg/servicemesh/controller"
 	apiv1 "k8s.io/api/core/v1"
 	disv1beta1 "k8s.io/api/discovery/v1beta1"
-	"k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
+	kubeinformer "github.com/maistra/xns-informer/pkg/generated/kube"
 	"github.com/prometheus/prometheus/discovery"
 	"github.com/prometheus/prometheus/discovery/targetgroup"
 )
@@ -121,7 +122,7 @@ func (*SDConfig) Name() string { return "kubernetes" }
 
 // NewDiscoverer returns a Discoverer for the Config.
 func (c *SDConfig) NewDiscoverer(opts discovery.DiscovererOptions) (discovery.Discoverer, error) {
-	return New(opts.Logger, c)
+	return New(opts.Logger, c, opts.MemberRollController, opts.MemberRollNamespace, opts.MemberRollResync)
 }
 
 // SetDirectory joins any relative file paths with dir.
@@ -228,12 +229,15 @@ func (c *NamespaceDiscovery) UnmarshalYAML(unmarshal func(interface{}) error) er
 // targets from Kubernetes.
 type Discovery struct {
 	sync.RWMutex
-	client             kubernetes.Interface
-	role               Role
-	logger             log.Logger
-	namespaceDiscovery *NamespaceDiscovery
-	discoverers        []discovery.Discoverer
-	selectors          roleSelector
+	client               kubernetes.Interface
+	role                 Role
+	logger               log.Logger
+	namespaceDiscovery   *NamespaceDiscovery
+	discoverers          []discovery.Discoverer
+	selectors            roleSelector
+	memberRollNamespace  string
+	memberRollController controller.MemberRollController
+	memberRollResync     time.Duration
 }
 
 func (d *Discovery) getNamespaces() []string {
@@ -245,7 +249,8 @@ func (d *Discovery) getNamespaces() []string {
 }
 
 // New creates a new Kubernetes discovery for the given role.
-func New(l log.Logger, conf *SDConfig) (*Discovery, error) {
+func New(l log.Logger, conf *SDConfig, memberRollController controller.MemberRollController,
+	memberRollNamespace string, memberRollResync time.Duration) (*Discovery, error) {
 	if l == nil {
 		l = log.NewNopLogger()
 	}
@@ -279,12 +284,15 @@ func New(l log.Logger, conf *SDConfig) (*Discovery, error) {
 		return nil, err
 	}
 	return &Discovery{
-		client:             c,
-		logger:             l,
-		role:               conf.Role,
-		namespaceDiscovery: &conf.NamespaceDiscovery,
-		discoverers:        make([]discovery.Discoverer, 0),
-		selectors:          mapSelector(conf.Selectors),
+		client:               c,
+		logger:               l,
+		role:                 conf.Role,
+		namespaceDiscovery:   &conf.NamespaceDiscovery,
+		discoverers:          make([]discovery.Discoverer, 0),
+		selectors:            mapSelector(conf.Selectors),
+		memberRollNamespace:  memberRollNamespace,
+		memberRollController: memberRollController,
+		memberRollResync:     memberRollResync,
 	}, nil
 }
 
@@ -319,8 +327,19 @@ const resyncPeriod = 10 * time.Minute
 
 // Run implements the discoverer interface.
 func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
+	kubeFactory := kubeinformer.NewSharedInformerFactoryWithOptions(
+		d.client,
+		d.memberRollResync,
+		kubeinformer.WithNamespaces(),
+	)
+
 	d.Lock()
-	namespaces := d.getNamespaces()
+	var namespaces []string
+	if d.memberRollNamespace != "" && d.memberRollController != nil {
+		namespaces = []string{d.memberRollNamespace}
+	} else {
+		namespaces = d.getNamespaces()
+	}
 
 	switch d.role {
 	case RoleEndpointSlice:
@@ -376,139 +395,64 @@ func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			go eps.podInf.Run(ctx.Done())
 		}
 	case RoleEndpoint:
-		for _, namespace := range namespaces {
-			e := d.client.CoreV1().Endpoints(namespace)
-			elw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.FieldSelector = d.selectors.endpoints.field
-					options.LabelSelector = d.selectors.endpoints.label
-					return e.List(ctx, options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.FieldSelector = d.selectors.endpoints.field
-					options.LabelSelector = d.selectors.endpoints.label
-					return e.Watch(ctx, options)
-				},
-			}
-			s := d.client.CoreV1().Services(namespace)
-			slw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.FieldSelector = d.selectors.service.field
-					options.LabelSelector = d.selectors.service.label
-					return s.List(ctx, options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.FieldSelector = d.selectors.service.field
-					options.LabelSelector = d.selectors.service.label
-					return s.Watch(ctx, options)
-				},
-			}
-			p := d.client.CoreV1().Pods(namespace)
-			plw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.FieldSelector = d.selectors.pod.field
-					options.LabelSelector = d.selectors.pod.label
-					return p.List(ctx, options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.FieldSelector = d.selectors.pod.field
-					options.LabelSelector = d.selectors.pod.label
-					return p.Watch(ctx, options)
-				},
-			}
-			eps := NewEndpoints(
-				log.With(d.logger, "role", "endpoint"),
-				cache.NewSharedInformer(slw, &apiv1.Service{}, resyncPeriod),
-				cache.NewSharedInformer(elw, &apiv1.Endpoints{}, resyncPeriod),
-				cache.NewSharedInformer(plw, &apiv1.Pod{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, eps)
-			go eps.endpointsInf.Run(ctx.Done())
-			go eps.serviceInf.Run(ctx.Done())
-			go eps.podInf.Run(ctx.Done())
+		if d.memberRollController != nil {
+			d.memberRollController.Register(kubeFactory, "kubernetes-informers")
 		}
+		epInformer := kubeFactory.Core().V1().Endpoints().Informer()
+		svcInformer := kubeFactory.Core().V1().Services().Informer()
+		pInformer := kubeFactory.Core().V1().Pods().Informer()
+		eps := NewEndpoints(
+			log.With(d.logger, "role", "endpoint"),
+			svcInformer,
+			epInformer,
+			pInformer,
+		)
+		d.discoverers = append(d.discoverers, eps)
+		go eps.endpointsInf.Run(ctx.Done())
+		go eps.serviceInf.Run(ctx.Done())
+		go eps.podInf.Run(ctx.Done())
 	case RolePod:
-		for _, namespace := range namespaces {
-			p := d.client.CoreV1().Pods(namespace)
-			plw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.FieldSelector = d.selectors.pod.field
-					options.LabelSelector = d.selectors.pod.label
-					return p.List(ctx, options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.FieldSelector = d.selectors.pod.field
-					options.LabelSelector = d.selectors.pod.label
-					return p.Watch(ctx, options)
-				},
-			}
-			pod := NewPod(
-				log.With(d.logger, "role", "pod"),
-				cache.NewSharedInformer(plw, &apiv1.Pod{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, pod)
-			go pod.informer.Run(ctx.Done())
+		if d.memberRollController != nil {
+			d.memberRollController.Register(kubeFactory, "kubernetes-informers")
 		}
+		pInformer := kubeFactory.Core().V1().Pods().Informer()
+		pod := NewPod(
+			log.With(d.logger, "role", "pod"),
+			pInformer,
+		)
+		d.discoverers = append(d.discoverers, pod)
+		go pod.informer.Run(ctx.Done())
 	case RoleService:
-		for _, namespace := range namespaces {
-			s := d.client.CoreV1().Services(namespace)
-			slw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.FieldSelector = d.selectors.service.field
-					options.LabelSelector = d.selectors.service.label
-					return s.List(ctx, options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.FieldSelector = d.selectors.service.field
-					options.LabelSelector = d.selectors.service.label
-					return s.Watch(ctx, options)
-				},
-			}
-			svc := NewService(
-				log.With(d.logger, "role", "service"),
-				cache.NewSharedInformer(slw, &apiv1.Service{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, svc)
-			go svc.informer.Run(ctx.Done())
+		if d.memberRollController != nil {
+			d.memberRollController.Register(kubeFactory, "kubernetes-informers")
 		}
+		svcInformer := kubeFactory.Core().V1().Services().Informer()
+		svc := NewService(
+			log.With(d.logger, "role", "service"),
+			svcInformer,
+		)
+		d.discoverers = append(d.discoverers, svc)
+		go svc.informer.Run(ctx.Done())
 	case RoleIngress:
-		for _, namespace := range namespaces {
-			i := d.client.NetworkingV1beta1().Ingresses(namespace)
-			ilw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.FieldSelector = d.selectors.ingress.field
-					options.LabelSelector = d.selectors.ingress.label
-					return i.List(ctx, options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.FieldSelector = d.selectors.ingress.field
-					options.LabelSelector = d.selectors.ingress.label
-					return i.Watch(ctx, options)
-				},
-			}
-			ingress := NewIngress(
-				log.With(d.logger, "role", "ingress"),
-				cache.NewSharedInformer(ilw, &v1beta1.Ingress{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, ingress)
-			go ingress.informer.Run(ctx.Done())
+		if d.memberRollController != nil {
+			d.memberRollController.Register(kubeFactory, "kubernetes-informers")
 		}
+		ingressInformer := kubeFactory.Networking().V1().Ingresses().Informer()
+		ingress := NewIngress(
+			log.With(d.logger, "role", "ingress"),
+			ingressInformer,
+		)
+		d.discoverers = append(d.discoverers, ingress)
+		go ingress.informer.Run(ctx.Done())
 	case RoleNode:
-		nlw := &cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				options.FieldSelector = d.selectors.node.field
-				options.LabelSelector = d.selectors.node.label
-				return d.client.CoreV1().Nodes().List(ctx, options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				options.FieldSelector = d.selectors.node.field
-				options.LabelSelector = d.selectors.node.label
-				return d.client.CoreV1().Nodes().Watch(ctx, options)
-			},
-		}
+		nodeFactory := kubeinformer.NewSharedInformerFactoryWithOptions(
+			d.client,
+			resyncPeriod,
+			kubeinformer.WithNamespaces(),
+		)
 		node := NewNode(
 			log.With(d.logger, "role", "node"),
-			cache.NewSharedInformer(nlw, &apiv1.Node{}, resyncPeriod),
+			nodeFactory.Core().V1().Nodes().Informer(),
 		)
 		d.discoverers = append(d.discoverers, node)
 		go node.informer.Run(ctx.Done())

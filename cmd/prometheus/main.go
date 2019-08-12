@@ -51,7 +51,6 @@ import (
 	"go.uber.org/atomic"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 	klog "k8s.io/klog"
-	klogv2 "k8s.io/klog/v2"
 
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
@@ -123,6 +122,10 @@ func main() {
 		queryConcurrency    int
 		queryMaxSamples     int
 		RemoteFlushDeadline model.Duration
+
+		memberRollName      string
+		memberRollNamespace string
+		memberRollResync    model.Duration
 
 		prometheusURL   string
 		corsRegexString string
@@ -263,6 +266,13 @@ func main() {
 
 	promlogflag.AddFlags(a, &cfg.promlogConfig)
 
+	a.Flag("discovery.member-roll-name", "The name of the ServiceMeshMemberRoll resource.").
+		Default("").StringVar(&cfg.memberRollName)
+	a.Flag("discovery.member-roll-namespace", "The namespace of the ServiceMeshMemberRoll resource.").
+		Default("").StringVar(&cfg.memberRollNamespace)
+	a.Flag("discovery.member-roll-resync", "The resync period for the ServiceMeshMemberRoll resource.").
+		Default("10m").SetValue(&cfg.memberRollResync)
+
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
@@ -354,8 +364,10 @@ func main() {
 	// Above level 6, the k8s client would log bearer tokens in clear-text.
 	klog.ClampLevel(6)
 	klog.SetLogger(log.With(logger, "component", "k8s_client_runtime"))
-	klogv2.ClampLevel(6)
-	klogv2.SetLogger(log.With(logger, "component", "k8s_client_runtime"))
+
+	//BAVERY_TODO -- fix before merging
+	//klogv2.ClampLevel(6)
+	//klogv2.SetLogger(log.With(logger, "component", "k8s_client_runtime"))
 
 	level.Info(logger).Log("msg", "Starting Prometheus", "version", version.Info())
 	if bits.UintSize < 64 {
@@ -381,7 +393,8 @@ func main() {
 		notifierManager = notifier.NewManager(&cfg.notifier, log.With(logger, "component", "notifier"))
 
 		ctxScrape, cancelScrape = context.WithCancel(context.Background())
-		discoveryManagerScrape  = discovery.NewManager(ctxScrape, log.With(logger, "component", "discovery manager scrape"), discovery.Name("scrape"))
+		discoveryManagerScrape  = discovery.NewManager(ctxScrape, log.With(logger, "component", "discovery manager scrape"), discovery.Name("scrape"),
+			discovery.MemberRollController(cfg.memberRollName, cfg.memberRollNamespace, time.Duration(cfg.memberRollResync)))
 
 		ctxNotify, cancelNotify = context.WithCancel(context.Background())
 		discoveryManagerNotify  = discovery.NewManager(ctxNotify, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
