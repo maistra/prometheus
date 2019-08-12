@@ -17,14 +17,12 @@ require (
 	github.com/cockroachdb/cockroach v0.0.0-20170608034007-84bc9597164f
 	github.com/cockroachdb/cockroach-go v0.0.0-20181001143604-e0a95dfd547c // indirect
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
-	github.com/coreos/etcd v3.3.10+incompatible // indirect
 	github.com/dgrijalva/jwt-go v0.0.0-20161101193935-9ed569b5d1ac // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/elastic/gosigar v0.9.0 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.0 // indirect
 	github.com/evanphx/json-patch v4.1.0+incompatible // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
-	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/getsentry/raven-go v0.1.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-ini/ini v1.21.1 // indirect
@@ -54,6 +52,7 @@ require (
 	github.com/hashicorp/serf v0.0.0-20161007004122-1d4fa605f6ff // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/hpcloud/tail v1.0.0 // indirect
+	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/influxdata/influxdb v0.0.0-20170331210902-15e594fc09f1
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.2.0+incompatible // indirect
@@ -66,13 +65,13 @@ require (
 	github.com/lightstep/lightstep-tracer-go v0.15.6 // indirect
 	github.com/mattn/go-runewidth v0.0.3 // indirect
 	github.com/miekg/dns v1.0.4
-	github.com/mitchellh/go-homedir v0.0.0-20180523094522-3864e76763d9 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742 // indirect
 	github.com/montanaflynn/stats v0.0.0-20180911141734-db72e6cae808 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223
+	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
 	github.com/oklog/oklog v0.0.0-20170918173356-f857583a70c3
 	github.com/olekukonko/tablewriter v0.0.0-20180912035003-be2c049b30cc // indirect
 	github.com/onsi/ginkgo v1.6.0 // indirect
@@ -101,8 +100,11 @@ require (
 	github.com/shurcooL/vfsgen v0.0.0-20180711163814-62bca832be04
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect
 	github.com/smartystreets/goconvey v0.0.0-20180222194500-ef6db91d284a // indirect
-	github.com/spf13/pflag v1.0.3 // indirect
+	github.com/spf13/cobra v0.0.5 // indirect
 	github.com/stretchr/testify v1.2.2
+	go.uber.org/atomic v1.4.0 // indirect
+	go.uber.org/multierr v1.1.0 // indirect
+	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/net v0.0.0-20181114220301-adae6a3d119a
 	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
 	golang.org/x/time v0.0.0-20170424234030-8be79e1e0910
@@ -116,10 +118,11 @@ require (
 	gopkg.in/inf.v0 v0.9.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
-	gopkg.in/yaml.v2 v2.2.1
-	k8s.io/api v0.0.0-20181213150558-05914d821849
-	k8s.io/apimachinery v0.0.0-20181127025237-2b1284ed4c93
-	k8s.io/client-go v2.0.0-alpha.0.0.20181121191925-a47917edff34+incompatible
+	gopkg.in/yaml.v2 v2.2.2
+	istio.io/istio v0.0.0-20190628021817-0cf9ca07c742
+	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
+	k8s.io/apimachinery v0.0.0-20190223001710-c182ff3b9841
+	k8s.io/client-go v0.0.0-20190117233410-4022682532b3
 	k8s.io/klog v0.1.0
 	k8s.io/kube-openapi v0.0.0-20180629012420-d83b052f768a // indirect
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
@@ -128,3 +131,5 @@ require (
 )
 
 replace k8s.io/klog => github.com/simonpasquier/klog-gokit v0.1.0
+
+replace istio.io/istio => github.com/maistra/istio v0.0.0-20190812133958-fc009edb73a1
