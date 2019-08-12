@@ -25,6 +25,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	config_util "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"istio.io/istio/pkg/listwatch"
+	"istio.io/istio/pkg/servicemesh/controller"
 	apiv1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -158,11 +160,14 @@ type discoverer interface {
 // targets from Kubernetes.
 type Discovery struct {
 	sync.RWMutex
-	client             kubernetes.Interface
-	role               Role
-	logger             log.Logger
-	namespaceDiscovery *NamespaceDiscovery
-	discoverers        []discoverer
+	client               kubernetes.Interface
+	role                 Role
+	logger               log.Logger
+	namespaceDiscovery   *NamespaceDiscovery
+	discoverers          []discoverer
+	memberRollNamespace  string
+	memberRollController controller.MemberRollController
+	memberRollResync     time.Duration
 }
 
 func (d *Discovery) getNamespaces() []string {
@@ -174,7 +179,8 @@ func (d *Discovery) getNamespaces() []string {
 }
 
 // New creates a new Kubernetes discovery for the given role.
-func New(l log.Logger, conf *SDConfig) (*Discovery, error) {
+func New(l log.Logger, conf *SDConfig, memberRollController controller.MemberRollController,
+	memberRollNamespace string, memberRollResync time.Duration) (*Discovery, error) {
 	if l == nil {
 		l = log.NewNopLogger()
 	}
@@ -208,11 +214,14 @@ func New(l log.Logger, conf *SDConfig) (*Discovery, error) {
 		return nil, err
 	}
 	return &Discovery{
-		client:             c,
-		logger:             l,
-		role:               conf.Role,
-		namespaceDiscovery: &conf.NamespaceDiscovery,
-		discoverers:        make([]discoverer, 0),
+		client:               c,
+		logger:               l,
+		role:                 conf.Role,
+		namespaceDiscovery:   &conf.NamespaceDiscovery,
+		discoverers:          make([]discoverer, 0),
+		memberRollNamespace:  memberRollNamespace,
+		memberRollController: memberRollController,
+		memberRollResync:     memberRollResync,
 	}, nil
 }
 
@@ -221,103 +230,138 @@ const resyncPeriod = 10 * time.Minute
 // Run implements the discoverer interface.
 func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 	d.Lock()
-	namespaces := d.getNamespaces()
+	var namespaces []string
+	if d.memberRollNamespace != "" && d.memberRollController != nil {
+		namespaces = []string{d.memberRollNamespace}
+	} else {
+		namespaces = d.getNamespaces()
+	}
 
 	switch d.role {
 	case RoleEndpoint:
-		for _, namespace := range namespaces {
-			e := d.client.CoreV1().Endpoints(namespace)
-			elw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return e.List(options)
+		elw := func(namespace string) cache.ListerWatcher {
+			return &cache.ListWatch{
+				ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+					return d.client.CoreV1().Endpoints(namespace).List(opts)
 				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return e.Watch(options)
-				},
-			}
-			s := d.client.CoreV1().Services(namespace)
-			slw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return s.List(options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return s.Watch(options)
+				WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+					return d.client.CoreV1().Endpoints(namespace).Watch(opts)
 				},
 			}
-			p := d.client.CoreV1().Pods(namespace)
-			plw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return p.List(options)
-				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return p.Watch(options)
-				},
-			}
-			eps := NewEndpoints(
-				log.With(d.logger, "role", "endpoint"),
-				cache.NewSharedInformer(slw, &apiv1.Service{}, resyncPeriod),
-				cache.NewSharedInformer(elw, &apiv1.Endpoints{}, resyncPeriod),
-				cache.NewSharedInformer(plw, &apiv1.Pod{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, eps)
-			go eps.endpointsInf.Run(ctx.Done())
-			go eps.serviceInf.Run(ctx.Done())
-			go eps.podInf.Run(ctx.Done())
 		}
+		emnlw := listwatch.MultiNamespaceListerWatcher(namespaces, elw)
+		if d.memberRollController != nil {
+			d.memberRollController.Register(emnlw)
+		}
+		epInformer := cache.NewSharedIndexInformer(emnlw, &apiv1.Endpoints{}, d.memberRollResync, cache.Indexers{})
+
+		slw := func(namespace string) cache.ListerWatcher {
+			return &cache.ListWatch{
+				ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+					return d.client.CoreV1().Services(namespace).List(opts)
+				},
+				WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+					return d.client.CoreV1().Services(namespace).Watch(opts)
+				},
+			}
+		}
+		smnlw := listwatch.MultiNamespaceListerWatcher(namespaces, slw)
+		if d.memberRollController != nil {
+			d.memberRollController.Register(smnlw)
+		}
+		svcInformer := cache.NewSharedIndexInformer(smnlw, &apiv1.Service{}, d.memberRollResync, cache.Indexers{})
+
+		plw := func(namespace string) cache.ListerWatcher {
+			return &cache.ListWatch{
+				ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+					return d.client.CoreV1().Pods(namespace).List(opts)
+				},
+				WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+					return d.client.CoreV1().Pods(namespace).Watch(opts)
+				},
+			}
+		}
+		pmnlw := listwatch.MultiNamespaceListerWatcher(namespaces, plw)
+		if d.memberRollController != nil {
+			d.memberRollController.Register(pmnlw)
+		}
+		pInformer := cache.NewSharedIndexInformer(pmnlw, &apiv1.Pod{}, d.memberRollResync, cache.Indexers{})
+		eps := NewEndpoints(
+			log.With(d.logger, "role", "endpoint"),
+			svcInformer,
+			epInformer,
+			pInformer,
+		)
+		d.discoverers = append(d.discoverers, eps)
+		go eps.endpointsInf.Run(ctx.Done())
+		go eps.serviceInf.Run(ctx.Done())
+		go eps.podInf.Run(ctx.Done())
 	case RolePod:
-		for _, namespace := range namespaces {
-			p := d.client.CoreV1().Pods(namespace)
-			plw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return p.List(options)
+		plw := func(namespace string) cache.ListerWatcher {
+			return &cache.ListWatch{
+				ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+					return d.client.CoreV1().Pods(namespace).List(opts)
 				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return p.Watch(options)
+				WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+					return d.client.CoreV1().Pods(namespace).Watch(opts)
 				},
 			}
-			pod := NewPod(
-				log.With(d.logger, "role", "pod"),
-				cache.NewSharedInformer(plw, &apiv1.Pod{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, pod)
-			go pod.informer.Run(ctx.Done())
 		}
+		pmnlw := listwatch.MultiNamespaceListerWatcher(namespaces, plw)
+		if d.memberRollController != nil {
+			d.memberRollController.Register(pmnlw)
+		}
+		pInformer := cache.NewSharedIndexInformer(pmnlw, &apiv1.Pod{}, d.memberRollResync, cache.Indexers{})
+		pod := NewPod(
+			log.With(d.logger, "role", "pod"),
+			pInformer,
+		)
+		d.discoverers = append(d.discoverers, pod)
+		go pod.informer.Run(ctx.Done())
 	case RoleService:
-		for _, namespace := range namespaces {
-			s := d.client.CoreV1().Services(namespace)
-			slw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return s.List(options)
+		slw := func(namespace string) cache.ListerWatcher {
+			return &cache.ListWatch{
+				ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+					return d.client.CoreV1().Services(namespace).List(opts)
 				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return s.Watch(options)
+				WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+					return d.client.CoreV1().Services(namespace).Watch(opts)
 				},
 			}
-			svc := NewService(
-				log.With(d.logger, "role", "service"),
-				cache.NewSharedInformer(slw, &apiv1.Service{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, svc)
-			go svc.informer.Run(ctx.Done())
 		}
+		smnlw := listwatch.MultiNamespaceListerWatcher(namespaces, slw)
+		if d.memberRollController != nil {
+			d.memberRollController.Register(smnlw)
+		}
+		svcInformer := cache.NewSharedIndexInformer(smnlw, &apiv1.Service{}, d.memberRollResync, cache.Indexers{})
+		svc := NewService(
+			log.With(d.logger, "role", "service"),
+			svcInformer,
+		)
+		d.discoverers = append(d.discoverers, svc)
+		go svc.informer.Run(ctx.Done())
 	case RoleIngress:
-		for _, namespace := range namespaces {
-			i := d.client.ExtensionsV1beta1().Ingresses(namespace)
-			ilw := &cache.ListWatch{
-				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return i.List(options)
+		ilw := func(namespace string) cache.ListerWatcher {
+			return &cache.ListWatch{
+				ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+					return d.client.ExtensionsV1beta1().Ingresses(namespace).List(opts)
 				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return i.Watch(options)
+				WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+					return d.client.ExtensionsV1beta1().Ingresses(namespace).Watch(opts)
 				},
 			}
-			ingress := NewIngress(
-				log.With(d.logger, "role", "ingress"),
-				cache.NewSharedInformer(ilw, &extensionsv1beta1.Ingress{}, resyncPeriod),
-			)
-			d.discoverers = append(d.discoverers, ingress)
-			go ingress.informer.Run(ctx.Done())
 		}
+		imnlw := listwatch.MultiNamespaceListerWatcher(namespaces, ilw)
+		if d.memberRollController != nil {
+			d.memberRollController.Register(imnlw)
+		}
+		ingressInformer := cache.NewSharedIndexInformer(imnlw, &extensionsv1beta1.Ingress{}, d.memberRollResync, cache.Indexers{})
+		ingress := NewIngress(
+			log.With(d.logger, "role", "ingress"),
+			ingressInformer,
+		)
+		d.discoverers = append(d.discoverers, ingress)
+		go ingress.informer.Run(ctx.Done())
 	case RoleNode:
 		nlw := &cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
