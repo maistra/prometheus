@@ -141,7 +141,7 @@ func Name(n string) func(*Manager) {
 	}
 }
 
-// MemberRollController creates the service mesh member roll controller
+// MemberRollController sets the configuration for the service mesh member roll controller
 func MemberRollController(name, namespace string, resync time.Duration) func(*Manager) {
 	return func(m *Manager) {
 		if name != "" && namespace != "" {
