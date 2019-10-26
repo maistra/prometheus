@@ -63,6 +63,6 @@ require (
 
 replace (
 	github.com/golang/lint => golang.org/x/lint v0.0.0-20190409202823-959b441ac422
-	istio.io/istio => github.com/maistra/istio v0.0.0-20190812133958-fc009edb73a1
+	istio.io/istio => github.com/maistra/istio v0.0.0-20191026003631-f0b2b709ca83
 	k8s.io/klog => github.com/simonpasquier/klog-gokit v0.1.0
 )

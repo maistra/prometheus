@@ -506,7 +506,7 @@ honnef.co/go/tools/staticcheck/vrp
 honnef.co/go/tools/stylecheck
 honnef.co/go/tools/unused
 honnef.co/go/tools/version
-# istio.io/istio v0.0.0-20190628021817-0cf9ca07c742 => github.com/maistra/istio v0.0.0-20190812133958-fc009edb73a1
+# istio.io/istio v0.0.0-20190628021817-0cf9ca07c742 => github.com/maistra/istio v0.0.0-20191026003631-f0b2b709ca83
 istio.io/istio/pkg/kube
 istio.io/istio/pkg/listwatch
 istio.io/istio/pkg/log
