@@ -1,0 +1,7 @@
+To udpate the dependencies
+
+- edit go.mod
+  - change istio.io/istio require and modify version to maistra-1.0
+- export GO111MODULE=on
+- go mod tidy
+- go mod vendor

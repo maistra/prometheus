@@ -21,7 +21,6 @@ require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/elastic/gosigar v0.9.0 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.0 // indirect
-	github.com/evanphx/json-patch v4.1.0+incompatible // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/getsentry/raven-go v0.1.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -116,6 +115,7 @@ require (
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/fsnotify/fsnotify.v1 v1.3.0
 	gopkg.in/inf.v0 v0.9.0 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 	gopkg.in/yaml.v2 v2.2.2
@@ -127,9 +127,8 @@ require (
 	k8s.io/kube-openapi v0.0.0-20180629012420-d83b052f768a // indirect
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
-	sigs.k8s.io/yaml v1.1.0 // indirect
 )
 
 replace k8s.io/klog => github.com/simonpasquier/klog-gokit v0.1.0
 
-replace istio.io/istio => github.com/maistra/istio v0.0.0-20190812133958-fc009edb73a1
+replace istio.io/istio => github.com/maistra/istio v0.0.0-20191026003631-f0b2b709ca83

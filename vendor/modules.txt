@@ -373,7 +373,7 @@ gopkg.in/fsnotify/fsnotify.v1
 gopkg.in/inf.v0
 # gopkg.in/yaml.v2 v2.2.2
 gopkg.in/yaml.v2
-# istio.io/istio v0.0.0-20190628021817-0cf9ca07c742 => github.com/maistra/istio v0.0.0-20190812133958-fc009edb73a1
+# istio.io/istio v0.0.0-20190628021817-0cf9ca07c742 => github.com/maistra/istio v0.0.0-20191024080840-d4f5c7455aec
 istio.io/istio/pkg/servicemesh/controller
 istio.io/istio/pkg/listwatch
 istio.io/istio/pkg/kube
