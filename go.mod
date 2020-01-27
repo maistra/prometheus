@@ -83,7 +83,7 @@ exclude (
 	// Exclude grpc v1.30.0 because of breaking changes. See #7621.
 	github.com/grpc-ecosystem/grpc-gateway v1.14.7
 	github.com/soheilhy/cmux v0.1.4
-	github.com/spf13/cobra v0.0.5 // indirect
+	go.opencensus.io v0.22.0 // indirect
 	go.uber.org/zap v1.13.0 // indirect
 	//golang.org/x/sys v0.0.0-20191010194322-b09406accb47
 	golang.org/x/tools v0.0.0-20191029190741-b9c20aec41a5
@@ -129,4 +129,12 @@ replace (
 	istio.io/istio => github.com/maistra/istio v0.0.0-20210714133845-70ba535f0b3a
 	istio.io/pkg => istio.io/pkg v0.0.0-20210723181842-d0e26aec6f00
 	k8s.io/klog => github.com/simonpasquier/klog-gokit v0.1.0
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.0.0-20191003001317-a019a9d85a86
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.0.0-20191003003129-09316795c0dd
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.0.0-20191003002707-f6b7b0f55cc0
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.0.0-20191003003001-314f0beee0a9
+	k8s.io/kubelet => k8s.io/kubelet v0.0.0-20191003002833-e367e4712542
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.0.0-20191003003732-7d49cdad1c12
+	k8s.io/metrics => k8s.io/metrics v0.0.0-20191003002233-837aead57baf
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191003001538-80f33ca02582
 )
