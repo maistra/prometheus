@@ -35,7 +35,6 @@ type CatalogService struct {
 	// We forgot to ever add ServiceProxyDestination here so no need to deprecate!
 	ServiceProxy *AgentServiceConnectProxyConfig
 	CreateIndex  uint64
-	Checks       HealthChecks
 	ModifyIndex  uint64
 }
 
@@ -53,7 +52,6 @@ type CatalogRegistration struct {
 	Datacenter      string
 	Service         *AgentService
 	Check           *AgentCheck
-	Checks          HealthChecks
 	SkipNodeUpdate  bool
 }
 
