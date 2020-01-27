@@ -22,8 +22,8 @@ import (
 	"strings"
 	"sync"
 
-	"istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/servicemesh/controller"
+	"istio.io/pkg/log"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -202,10 +202,10 @@ func (mlw *multiListerWatcher) newMultiWatch(resourceVersions map[string]string,
 	defer mlw.lock.Unlock()
 
 	var (
-		result  = make(chan watch.Event)
-		stopped = make(chan struct{})
-		wg      sync.WaitGroup
-		combinedResult  = make(chan *combinedEvent)
+		result         = make(chan watch.Event)
+		stopped        = make(chan struct{})
+		wg             sync.WaitGroup
+		combinedResult = make(chan *combinedEvent)
 	)
 	mlw.result = result
 	mlw.stopped = stopped
@@ -219,7 +219,8 @@ func (mlw *multiListerWatcher) newMultiWatch(resourceVersions map[string]string,
 	}
 
 	mlw.state = watching
-	wg.Add(len(mlw.lwMap)+1)
+
+	wg.Add(len(mlw.lwMap) + 1)
 
 	go func() {
 		defer wg.Done()
@@ -227,7 +228,7 @@ func (mlw *multiListerWatcher) newMultiWatch(resourceVersions map[string]string,
 		for {
 			var event *combinedEvent
 			select {
-			case event = <- combinedResult:
+			case event = <-combinedResult:
 			case <-stopped:
 				return
 			}
