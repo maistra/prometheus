@@ -39,6 +39,7 @@ require (
 	github.com/soheilhy/cmux v0.1.4
 	go.opencensus.io v0.22.0 // indirect
 	go.uber.org/zap v1.13.0 // indirect
+	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899 // indirect
 	golang.org/x/net v0.0.0-20191014212845-da9a3fd4c582
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
