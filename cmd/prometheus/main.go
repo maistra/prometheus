@@ -51,6 +51,7 @@ import (
 	"go.uber.org/atomic"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 	klog "k8s.io/klog"
+	klogv2 "k8s.io/klog/v2"
 
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
@@ -365,9 +366,7 @@ func main() {
 	klog.ClampLevel(6)
 	klog.SetLogger(log.With(logger, "component", "k8s_client_runtime"))
 
-	//BAVERY_TODO -- fix before merging
-	//klogv2.ClampLevel(6)
-	//klogv2.SetLogger(log.With(logger, "component", "k8s_client_runtime"))
+	klogv2.SetLogger(logToLogr(log.With(logger, "component", "k8s_client_runtime")))
 
 	level.Info(logger).Log("msg", "Starting Prometheus", "version", version.Info())
 	if bits.UintSize < 64 {
