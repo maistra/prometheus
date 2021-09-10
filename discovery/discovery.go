@@ -16,9 +16,11 @@ package discovery
 import (
 	"context"
 	"reflect"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/common/config"
+	"istio.io/istio/pkg/servicemesh/controller"
 
 	"github.com/prometheus/prometheus/discovery/targetgroup"
 )
@@ -40,7 +42,10 @@ type Discoverer interface {
 
 // DiscovererOptions provides options for a Discoverer.
 type DiscovererOptions struct {
-	Logger log.Logger
+	Logger               log.Logger
+	MemberRollController controller.MemberRollController
+	MemberRollNamespace  string
+	MemberRollResync     time.Duration
 }
 
 // A Config provides the configuration and constructor for a Discoverer.
