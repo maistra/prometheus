@@ -408,9 +408,7 @@ func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			pInformer,
 		)
 		d.discoverers = append(d.discoverers, eps)
-		go eps.endpointsInf.Run(ctx.Done())
-		go eps.serviceInf.Run(ctx.Done())
-		go eps.podInf.Run(ctx.Done())
+		kubeFactory.Start(ctx.Done())
 	case RolePod:
 		if d.memberRollController != nil {
 			d.memberRollController.Register(kubeFactory, "kubernetes-informers")
@@ -421,7 +419,7 @@ func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			pInformer,
 		)
 		d.discoverers = append(d.discoverers, pod)
-		go pod.informer.Run(ctx.Done())
+		kubeFactory.Start(ctx.Done())
 	case RoleService:
 		if d.memberRollController != nil {
 			d.memberRollController.Register(kubeFactory, "kubernetes-informers")
@@ -432,7 +430,7 @@ func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			svcInformer,
 		)
 		d.discoverers = append(d.discoverers, svc)
-		go svc.informer.Run(ctx.Done())
+		kubeFactory.Start(ctx.Done())
 	case RoleIngress:
 		if d.memberRollController != nil {
 			d.memberRollController.Register(kubeFactory, "kubernetes-informers")
@@ -443,7 +441,7 @@ func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			ingressInformer,
 		)
 		d.discoverers = append(d.discoverers, ingress)
-		go ingress.informer.Run(ctx.Done())
+		kubeFactory.Start(ctx.Done())
 	case RoleNode:
 		nodeFactory := kubeinformer.NewSharedInformerFactoryWithOptions(
 			d.client,
@@ -455,7 +453,7 @@ func (d *Discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			nodeFactory.Core().V1().Nodes().Informer(),
 		)
 		d.discoverers = append(d.discoverers, node)
-		go node.informer.Run(ctx.Done())
+		kubeFactory.Start(ctx.Done())
 	default:
 		level.Error(d.logger).Log("msg", "unknown Kubernetes discovery kind", "role", d.role)
 	}

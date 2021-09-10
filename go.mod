@@ -75,24 +75,17 @@ require (
 	k8s.io/klog v1.0.0
 )
 
-//BAVERY_TODO: fix before merging
-//replace k8s.io/klog/v2 => github.com/simonpasquier/klog-gokit/v2 v2.0.1
-//replace k8s.io/klog/v2 => github.com/simonpasquier/klog-gokit/v2 v2.1.0
-
 exclude (
 	// Exclude grpc v1.30.0 because of breaking changes. See #7621.
 	github.com/grpc-ecosystem/grpc-gateway v1.14.7
 	github.com/soheilhy/cmux v0.1.4
 	go.opencensus.io v0.22.0 // indirect
 	go.uber.org/zap v1.13.0 // indirect
-	//golang.org/x/sys v0.0.0-20191010194322-b09406accb47
 	golang.org/x/tools v0.0.0-20191029190741-b9c20aec41a5
 	google.golang.org/api v0.30.0
 	google.golang.org/api v0.8.0
 	google.golang.org/grpc v1.22.1
 	gopkg.in/yaml.v2 v2.2.2
-	//istio.io/pkg v0.0.0-20201230223204-2d0a1c8bd9e5
-	//istio.io/istio v0.0.0-20190628021817-0cf9ca07c742
 	k8s.io/api v0.0.0-20190813020757-36bff7324fb7
 	k8s.io/apimachinery v0.0.0-20190809020650-423f5d784010
 	k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
