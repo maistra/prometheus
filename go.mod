@@ -39,10 +39,11 @@ require (
 	github.com/soheilhy/cmux v0.1.4
 	go.opencensus.io v0.22.0 // indirect
 	go.uber.org/zap v1.13.0 // indirect
-	golang.org/x/net v0.0.0-20191014212845-da9a3fd4c582
+	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e // indirect
+	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	golang.org/x/sys v0.0.0-20191010194322-b09406accb47
+	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/tools v0.0.0-20191029190741-b9c20aec41a5
 	google.golang.org/api v0.8.0
@@ -62,6 +63,7 @@ replace (
 	// this line fixes an issue with Azure dependencies
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v11.9.0+incompatible
 	github.com/golang/lint => golang.org/x/lint v0.0.0-20190409202823-959b441ac422
+	github.com/openshift/api => github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad // Required until https://github.com/operator-framework/operator-lifecycle-manager/pull/1241 is resolved
 	istio.io/istio => github.com/maistra/istio v0.0.0-20200122191435-b0f47f26fa67
 
 	// the following replace directives are copied from maistra/istio because
