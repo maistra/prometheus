@@ -19,6 +19,7 @@ require (
 	github.com/edsrzf/mmap-go v1.0.0
 	github.com/go-kit/kit v0.10.0
 	github.com/go-logfmt/logfmt v0.5.0
+	github.com/go-logr/logr v0.4.0
 	github.com/go-openapi/analysis v0.19.12 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.4 // indirect
@@ -73,6 +74,7 @@ require (
 	k8s.io/apimachinery v0.20.1
 	k8s.io/client-go v0.20.1
 	k8s.io/klog v1.0.0
+	k8s.io/klog/v2 v2.5.0
 )
 
 exclude (
