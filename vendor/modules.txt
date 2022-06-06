@@ -173,6 +173,7 @@ github.com/go-kit/kit/log/level
 ## explicit
 github.com/go-logfmt/logfmt
 # github.com/go-logr/logr v0.4.0
+## explicit
 github.com/go-logr/logr
 # github.com/go-openapi/analysis v0.19.12
 ## explicit
@@ -1258,6 +1259,7 @@ k8s.io/component-base/version
 ## explicit
 k8s.io/klog
 # k8s.io/klog/v2 v2.5.0
+## explicit
 k8s.io/klog/v2
 # k8s.io/kube-openapi v0.0.0-20210312000640-9f480bcdc475
 k8s.io/kube-openapi/pkg/common
