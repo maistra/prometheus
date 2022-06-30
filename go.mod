@@ -28,7 +28,7 @@ require (
 	github.com/go-openapi/strfmt v0.19.11
 	github.com/go-openapi/swag v0.19.12 // indirect
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/snappy v0.0.2
+	github.com/golang/snappy v0.0.4
 	github.com/google/pprof v0.0.0-20210122040257-d980be63207e
 	github.com/gophercloud/gophercloud v0.14.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
