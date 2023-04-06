@@ -91,5 +91,8 @@
     "snapshotSerializers": [
       "enzyme-to-json/serializer"
     ]
+  },
+  "resolutions": {
+      "terser": "4.8.1"
   }
 }
