@@ -121,6 +121,8 @@ exclude (
 replace (
 	github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.9.9
 	github.com/golang/lint => golang.org/x/lint v0.0.0-20190409202823-959b441ac422
+
+	go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.0
 	istio.io/istio => github.com/maistra/istio v0.0.0-20210714133845-70ba535f0b3a
 	istio.io/pkg => istio.io/pkg v0.0.0-20210723181842-d0e26aec6f00
 	k8s.io/klog => github.com/simonpasquier/klog-gokit v0.1.0
