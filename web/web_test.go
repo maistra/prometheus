@@ -40,6 +40,7 @@ import (
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/tsdb"
+	"github.com/prometheus/prometheus/util/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -114,8 +115,10 @@ func TestReadyAndHealthy(t *testing.T) {
 	db, err := tsdb.Open(dbDir, nil, nil, nil)
 	require.NoError(t, err)
 
+	port := fmt.Sprintf(":%d", testutil.RandomUnprivilegedPort(t))
+
 	opts := &Options{
-		ListenAddress:  ":9090",
+		ListenAddress:  port,
 		ReadTimeout:    30 * time.Second,
 		MaxConnections: 512,
 		Context:        nil,
@@ -130,7 +133,7 @@ func TestReadyAndHealthy(t *testing.T) {
 		EnableAdminAPI: true,
 		ExternalURL: &url.URL{
 			Scheme: "http",
-			Host:   "localhost:9090",
+			Host:   "localhost" + port,
 			Path:   "/",
 		},
 		Version:  &PrometheusVersion{},
@@ -157,20 +160,22 @@ func TestReadyAndHealthy(t *testing.T) {
 	// to be up before starting tests.
 	time.Sleep(5 * time.Second)
 
-	resp, err := http.Get("http://localhost:9090/-/healthy")
+	baseURL := "http://localhost" + port
+
+	resp, err := http.Get(baseURL + "/-/healthy")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	cleanupTestResponse(t, resp)
 
 	for _, u := range []string{
-		"http://localhost:9090/-/ready",
-		"http://localhost:9090/classic/graph",
-		"http://localhost:9090/classic/flags",
-		"http://localhost:9090/classic/rules",
-		"http://localhost:9090/classic/service-discovery",
-		"http://localhost:9090/classic/targets",
-		"http://localhost:9090/classic/status",
-		"http://localhost:9090/classic/config",
+		baseURL + "/-/ready",
+		baseURL + "/classic/graph",
+		baseURL + "/classic/flags",
+		baseURL + "/classic/rules",
+		baseURL + "/classic/service-discovery",
+		baseURL + "/classic/targets",
+		baseURL + "/classic/status",
+		baseURL + "/classic/config",
 	} {
 		resp, err = http.Get(u)
 		require.NoError(t, err)
@@ -178,12 +183,12 @@ func TestReadyAndHealthy(t *testing.T) {
 		cleanupTestResponse(t, resp)
 	}
 
-	resp, err = http.Post("http://localhost:9090/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
+	resp, err = http.Post(baseURL+"/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Post("http://localhost:9090/api/v1/admin/tsdb/delete_series", "", strings.NewReader("{}"))
+	resp, err = http.Post(baseURL+"/api/v1/admin/tsdb/delete_series", "", strings.NewReader("{}"))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	cleanupTestResponse(t, resp)
@@ -192,15 +197,15 @@ func TestReadyAndHealthy(t *testing.T) {
 	webHandler.Ready()
 
 	for _, u := range []string{
-		"http://localhost:9090/-/healthy",
-		"http://localhost:9090/-/ready",
-		"http://localhost:9090/classic/graph",
-		"http://localhost:9090/classic/flags",
-		"http://localhost:9090/classic/rules",
-		"http://localhost:9090/classic/service-discovery",
-		"http://localhost:9090/classic/targets",
-		"http://localhost:9090/classic/status",
-		"http://localhost:9090/classic/config",
+		baseURL + "/-/healthy",
+		baseURL + "/-/ready",
+		baseURL + "/classic/graph",
+		baseURL + "/classic/flags",
+		baseURL + "/classic/rules",
+		baseURL + "/classic/service-discovery",
+		baseURL + "/classic/targets",
+		baseURL + "/classic/status",
+		baseURL + "/classic/config",
 	} {
 		resp, err = http.Get(u)
 		require.NoError(t, err)
@@ -208,13 +213,13 @@ func TestReadyAndHealthy(t *testing.T) {
 		cleanupTestResponse(t, resp)
 	}
 
-	resp, err = http.Post("http://localhost:9090/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
+	resp, err = http.Post(baseURL+"/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	cleanupSnapshot(t, dbDir, resp)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Post("http://localhost:9090/api/v1/admin/tsdb/delete_series?match[]=up", "", nil)
+	resp, err = http.Post(baseURL+"/api/v1/admin/tsdb/delete_series?match[]=up", "", nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 	cleanupTestResponse(t, resp)
@@ -229,8 +234,10 @@ func TestRoutePrefix(t *testing.T) {
 	db, err := tsdb.Open(dbDir, nil, nil, nil)
 	require.NoError(t, err)
 
+	port := fmt.Sprintf(":%d", testutil.RandomUnprivilegedPort(t))
+
 	opts := &Options{
-		ListenAddress:  ":9091",
+		ListenAddress:  port,
 		ReadTimeout:    30 * time.Second,
 		MaxConnections: 512,
 		Context:        nil,
@@ -244,7 +251,7 @@ func TestRoutePrefix(t *testing.T) {
 		RoutePrefix:    "/prometheus",
 		EnableAdminAPI: true,
 		ExternalURL: &url.URL{
-			Host:   "localhost.localdomain:9090",
+			Host:   "localhost.localdomain" + port,
 			Scheme: "http",
 		},
 	}
@@ -265,22 +272,24 @@ func TestRoutePrefix(t *testing.T) {
 	// to be up before starting tests.
 	time.Sleep(5 * time.Second)
 
-	resp, err := http.Get("http://localhost:9091" + opts.RoutePrefix + "/-/healthy")
+	baseURL := "http://localhost" + port
+
+	resp, err := http.Get(baseURL + opts.RoutePrefix + "/-/healthy")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Get("http://localhost:9091" + opts.RoutePrefix + "/-/ready")
+	resp, err = http.Get(baseURL + opts.RoutePrefix + "/-/ready")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Post("http://localhost:9091"+opts.RoutePrefix+"/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
+	resp, err = http.Post(baseURL+opts.RoutePrefix+"/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Post("http://localhost:9091"+opts.RoutePrefix+"/api/v1/admin/tsdb/delete_series", "", strings.NewReader("{}"))
+	resp, err = http.Post(baseURL+opts.RoutePrefix+"/api/v1/admin/tsdb/delete_series", "", strings.NewReader("{}"))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	cleanupTestResponse(t, resp)
@@ -288,23 +297,23 @@ func TestRoutePrefix(t *testing.T) {
 	// Set to ready.
 	webHandler.Ready()
 
-	resp, err = http.Get("http://localhost:9091" + opts.RoutePrefix + "/-/healthy")
+	resp, err = http.Get(baseURL + opts.RoutePrefix + "/-/healthy")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Get("http://localhost:9091" + opts.RoutePrefix + "/-/ready")
+	resp, err = http.Get(baseURL + opts.RoutePrefix + "/-/ready")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Post("http://localhost:9091"+opts.RoutePrefix+"/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
+	resp, err = http.Post(baseURL+opts.RoutePrefix+"/api/v1/admin/tsdb/snapshot", "", strings.NewReader(""))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	cleanupSnapshot(t, dbDir, resp)
 	cleanupTestResponse(t, resp)
 
-	resp, err = http.Post("http://localhost:9091"+opts.RoutePrefix+"/api/v1/admin/tsdb/delete_series?match[]=up", "", nil)
+	resp, err = http.Post(baseURL+opts.RoutePrefix+"/api/v1/admin/tsdb/delete_series?match[]=up", "", nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 	cleanupTestResponse(t, resp)
@@ -392,8 +401,10 @@ func TestShutdownWithStaleConnection(t *testing.T) {
 
 	timeout := 10 * time.Second
 
+	port := fmt.Sprintf(":%d", testutil.RandomUnprivilegedPort(t))
+
 	opts := &Options{
-		ListenAddress:  ":9090",
+		ListenAddress:  port,
 		ReadTimeout:    timeout,
 		MaxConnections: 512,
 		Context:        nil,
@@ -407,7 +418,7 @@ func TestShutdownWithStaleConnection(t *testing.T) {
 		RoutePrefix:    "/",
 		ExternalURL: &url.URL{
 			Scheme: "http",
-			Host:   "localhost:9090",
+			Host:   "localhost" + port,
 			Path:   "/",
 		},
 		Version:  &PrometheusVersion{},
@@ -438,7 +449,7 @@ func TestShutdownWithStaleConnection(t *testing.T) {
 
 	// Open a socket, and don't use it. This connection should then be closed
 	// after the ReadTimeout.
-	c, err := net.Dial("tcp", "localhost:9090")
+	c, err := net.Dial("tcp", opts.ExternalURL.Host)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, c.Close()) })
 
@@ -453,14 +464,16 @@ func TestShutdownWithStaleConnection(t *testing.T) {
 }
 
 func TestHandleMultipleQuitRequests(t *testing.T) {
+	port := fmt.Sprintf(":%d", testutil.RandomUnprivilegedPort(t))
+
 	opts := &Options{
-		ListenAddress:   ":9090",
+		ListenAddress:   port,
 		MaxConnections:  512,
 		EnableLifecycle: true,
 		RoutePrefix:     "/",
 		ExternalURL: &url.URL{
 			Scheme: "http",
-			Host:   "localhost:9090",
+			Host:   "localhost" + port,
 			Path:   "/",
 		},
 	}
@@ -481,6 +494,8 @@ func TestHandleMultipleQuitRequests(t *testing.T) {
 	// to be up before starting tests.
 	time.Sleep(5 * time.Second)
 
+	baseURL := opts.ExternalURL.Scheme + "://" + opts.ExternalURL.Host
+
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for i := 0; i < 3; i++ {
@@ -488,7 +503,7 @@ func TestHandleMultipleQuitRequests(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			resp, err := http.Post("http://localhost:9090/-/quit", "", strings.NewReader(""))
+			resp, err := http.Post(baseURL+"/-/quit", "", strings.NewReader(""))
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		}()
