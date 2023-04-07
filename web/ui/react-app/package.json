@@ -95,6 +95,8 @@
   "resolutions": {
       "terser": "4.8.1",
       "async": "2.6.4",
-      "moment": "2.29.4"
+      "moment": "2.29.4",
+      "react-scripts/**/qs": "6.7.3",
+      "**/request/qs": "6.5.3"
   }
 }
